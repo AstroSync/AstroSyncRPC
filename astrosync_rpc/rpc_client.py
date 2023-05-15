@@ -1,44 +1,74 @@
 
-from typing import Callable
-from astrosync_rpc.websocket_client import WebSocketClient
+from queue import Empty
+import time
+from typing import Any, Callable
+from astrosync_rpc.auth_client import AstroSyncAuthClient
+from astrosync_rpc.websocket_client import WebSocketClient, WaitingMsg, Msg
 
 
 class RPC_Client:
-    def __init__(self, server_addr: str, user_id: str, ground_station: str) -> None:
-        self._ws = WebSocketClient(server_addr, user_id, ground_station, {})
+
+    def __init__(self, ground_station: str, server_addr: str = 'api.astrosync.ru') -> None:
+        self.auth_client = AstroSyncAuthClient()
+        self.user = self.auth_client.userinfo()
+        self.ws_client = WebSocketClient(server_addr, self.user['sub'], ground_station, {})
+        self.ws_client.on_open_event.connect(self.on_connected)
+        self.ws_client._connect()
+
+    def on_connected(self) -> None:
+        self._auth()
+        try:
+            while True:
+                msg: WaitingMsg = self.ws_client.waiting_queue.get_nowait()
+                if time.time() - msg.timestamp < self.ws_client.message_spoil_time:
+                    self.ws_client.ws.send(msg.message.json())
+        except Empty:
+            pass
+
+    def _auth(self) -> None:
+        self.ws_client.ws.send(Msg(src=self.user['sub'], dst='COORDINATOR', method='AUTH',
+                         params={'token': self.auth_client.token.access_token}).json())
 
     def radio_tx(self, data: str) -> None:
-        self._ws.call('SEND', {'data': data})
+        self.ws_client.call('SEND', {'data': data})
 
     def radio_wait_rx(self):
-        self._ws.call('WAIT_RX')
+        self.ws_client.call('WAIT_RX')
 
     def radio_init(self):
-        self._ws.call('INIT_RADIO')
+        self.ws_client.call('INIT_RADIO')
 
     def rotator_get_position(self):
-        return self._ws.call_answer('GET_POSITION')
+        return self.ws_client.call_answer('GET_POSITION')
 
     def rotator_get_position_error(self):
-        return self._ws.call_answer('GET_POSITION_ERROR')
+        return self.ws_client.call_answer('GET_POSITION_ERROR')
 
     def get_remaining_session_time(self):
-        return self._ws.call_answer('get_remaining_session_time')
+        return self.ws_client.call_answer('GET_REMAINING_SESSION_TIME')
 
     def echo(self):
-        return self._ws.call_answer("ECHO")
+        timestamp = time.time()
+        answer = self.ws_client.call_answer("ECHO")
 
-    def on_aborted(self, handler: Callable):
-        self._ws.register_event('ON_ABORTED', handler)
+        return answer, time.time() - timestamp
 
-    def on_session_started(self, handler: Callable):
-        self._ws.register_event('ON_SESSION_STARTED', handler)
+    def on_aborted(self, handler: Callable[[None], Any]):
+        self.ws_client.register_event('ON_ABORTED', handler)
 
-    def on_session_finished(self, handler: Callable):
-        self._ws.register_event('ON_SESSION_FINISHED', handler)
+    def on_session_started(self, handler: Callable[[None], Any]):
+        self.ws_client.register_event('ON_SESSION_STARTED', handler)
 
-    def on_receive(self, handler: Callable):
-        self._ws.register_event('ON_RECEIVE', handler)
+    def on_session_finished(self, handler: Callable[[None], Any]):
+        self.ws_client.register_event('ON_SESSION_FINISHED', handler)
 
-    def on_status_changed(self, handler: Callable):
-        self._ws.register_event('ON_STATUS_CHANGED', handler)
+    def on_receive(self, handler: Callable[[str], Any]):
+        self.ws_client.register_event('ON_RECEIVE', handler)
+
+    def on_status_changed(self, handler: Callable[[str], Any]):
+        self.ws_client.register_event('ON_STATUS_CHANGED', handler)
+
+if __name__ == '__main__':
+    client = RPC_Client('NSU')
+    client.radio_tx('hello world')
+    print(client.rotator_get_position())
