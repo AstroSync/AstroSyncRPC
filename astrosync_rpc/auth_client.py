@@ -5,6 +5,7 @@ from datetime import datetime, date
 import json
 import requests_oauth2client
 from requests_oauth2client.tokens import BearerToken
+from requests_oauth2client.exceptions import InvalidGrant
 from requests_oauth2client.device_authorization import DeviceAuthorizationResponse, DeviceAuthorizationPoolingJob
 
 
@@ -12,6 +13,7 @@ def json_serial(obj) -> str:
     if isinstance(obj, (datetime, date)):
         return obj.isoformat()
     raise TypeError ("Type %s not serializable" % type(obj))
+
 
 def date_hook(json_dict: dict):
     for (key, value) in json_dict.items():
@@ -21,10 +23,9 @@ def date_hook(json_dict: dict):
 
 
 class AstroSyncAuthClient:
-    oidc_config_url: str = 'https://auth.astrosync.ru/auth/realms/Test/.well-known/openid-configuration'
-    oidc_config: dict = requests.get(oidc_config_url).json()
-
     def __init__(self, token_storage_path: str | None = None, force_reauthorize: bool = False) -> None:
+        self.oidc_config_url: str = 'https://auth.astrosync.ru/auth/realms/Test/.well-known/openid-configuration'
+        self.oidc_config: dict = requests.get(self.oidc_config_url).json()
         self.client = requests_oauth2client.client.OAuth2Client(
             token_endpoint=self.oidc_config['token_endpoint'],
             device_authorization_endpoint=self.oidc_config['device_authorization_endpoint'],
@@ -64,9 +65,19 @@ class AstroSyncAuthClient:
                 if token.is_expired():
                     if not token.refresh_token:
                         raise RuntimeError('Refresh token must not be None!')
-                    token = self.client.refresh_token(token.refresh_token)
-                    print('token refreshed successfully')
-                    save_token(token)
+                    try:
+                        token = self.client.refresh_token(token.refresh_token)
+                        print('token refreshed successfully')
+                        try:
+                            save_token(token)
+                        except TypeError as err:
+                            print(err)
+                            print(token)
+                    except InvalidGrant as err:
+                        print(err)
+                        token = self.get_new_token()
+                        print('Successfully authorized!')
+                        save_token(token)
                 else:
                     print('Already authorized')
             else:
