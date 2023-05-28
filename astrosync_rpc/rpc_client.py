@@ -8,7 +8,7 @@ from astrosync_rpc.websocket_client import WebSocketClient, WaitingMsg, Msg
 
 class RPC_Client:
 
-    def __init__(self, ground_station: str, server_addr: str = 'api.astrosync.ru') -> None:
+    def __init__(self, ground_station: str, server_addr: str = 'astrosync.ru/api') -> None:
         self.auth_client = AstroSyncAuthClient()
         self.user = self.auth_client.userinfo()
         self.ws_client = WebSocketClient(server_addr, self.user['sub'], ground_station, {})
@@ -24,19 +24,28 @@ class RPC_Client:
                     self.ws_client.ws.send(msg.message.json())
         except Empty:
             pass
+        finally:
+            self.ws_client.call('CONNECT')
 
     def _auth(self) -> None:
         self.ws_client.ws.send(Msg(src=self.user['sub'], dst='COORDINATOR', method='AUTH',
                          params={'token': self.auth_client.token.access_token}).json())
 
-    def radio_tx(self, data: str) -> None:
+    def radio_tx(self, data: bytes | list[int]) -> None:
         self.ws_client.call('SEND', {'data': data})
 
-    def radio_wait_rx(self):
-        self.ws_client.call('WAIT_RX')
+    def radio_wait_rx(self, timeout_sec: float | None = None):
+        self.ws_client.call_answer('WAIT_RX', answer_timeout=timeout_sec or 2)
+
+    def run_script(self, script_id: str, timeout: int = 2) -> None:
+        print(f'{self.user["sub"]=}')
+        self.ws_client.call('RUN_SCRIPT', {'user_id': self.user['sub'], 'script_id': str(script_id), 'timeout': timeout})
 
     def radio_init(self):
         self.ws_client.call('INIT_RADIO')
+
+    def rotator_set_position(self, az: float, el: float) -> None:
+        return self.ws_client.call('SET_POSITION', {'az': az, 'el': el})
 
     def rotator_get_position(self):
         return self.ws_client.call_answer('GET_POSITION')
@@ -70,5 +79,5 @@ class RPC_Client:
 
 if __name__ == '__main__':
     client = RPC_Client('NSU')
-    client.radio_tx('hello world')
+    client.radio_tx(b'hello world')
     print(client.rotator_get_position())
