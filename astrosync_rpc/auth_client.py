@@ -3,6 +3,8 @@ import requests
 from pathlib import Path
 from datetime import datetime, date
 import json
+import io
+import qrcode
 import requests_oauth2client
 from requests_oauth2client.tokens import BearerToken
 from requests_oauth2client.exceptions import InvalidGrant
@@ -21,10 +23,20 @@ def date_hook(json_dict: dict):
             json_dict.update({'expires_at': datetime.fromisoformat(value)})
     return json_dict
 
+def print_qr_code(data: str) -> None:
+    qr = qrcode.QRCode()
+    qr.add_data(data)
+    f = io.StringIO()
+    qr.print_ascii(out=f)
+    f.seek(0)
+    print(f.read())
+
+class AuthError(RuntimeError):
+    pass
 
 class AstroSyncAuthClient:
     def __init__(self, token_storage_path: str | None = None, force_reauthorize: bool = False) -> None:
-        self.oidc_config_url: str = 'https://auth.astrosync.ru/auth/realms/Test/.well-known/openid-configuration'
+        self.oidc_config_url: str = 'https://astrosync.ru/auth/realms/Test/.well-known/openid-configuration'
         self.oidc_config: dict = requests.get(self.oidc_config_url).json()
         self.client = requests_oauth2client.client.OAuth2Client(
             token_endpoint=self.oidc_config['token_endpoint'],
@@ -37,8 +49,10 @@ class AstroSyncAuthClient:
     def get_new_token(self) -> BearerToken:
         da_resp: DeviceAuthorizationResponse = self.client.authorize_device()
         redirect_url: str | None = da_resp.verification_uri_complete
+
         if redirect_url is not None:
-            print('Start authorization process...')
+            print('You will be redirected for authorization process\nor you can scan QR code by your phone')
+            print_qr_code(redirect_url)
             webbrowser.open(redirect_url)
         pool_job = DeviceAuthorizationPoolingJob(self.client, da_resp.device_code, interval=da_resp.interval)
         token: BearerToken | None = None
@@ -90,7 +104,11 @@ class AstroSyncAuthClient:
         raise RuntimeError('Authorization failed!')
 
     def userinfo(self) -> dict:
-        return self.client.userinfo(self.token)
+        user_info: dict = self.client.userinfo(self.token)
+        if hasattr(user_info, 'error'):
+            raise AuthError(f'incorrect token: {user_info["error_description"]}\nTry to delete last_session.json'\
+                            f' and try again.')
+        return user_info
 
 
 if __name__ == '__main__':
