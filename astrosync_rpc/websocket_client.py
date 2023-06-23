@@ -125,7 +125,7 @@ class WebSocketClient:
 
     def call(self, method: str, params: dict | None = None) -> None:
         if not self.connection_status:
-            raise RuntimeError('Websocket is not connected')
+            raise RuntimeError('Websocket is not connected. AstroSync api server is offline')
         msg = Msg(src=self.user_id, dst=self.ground_station, method=method, params=params if params else {})
         if not self.is_connected():
             print('no connection')
