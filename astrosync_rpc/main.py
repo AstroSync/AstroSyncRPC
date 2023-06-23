@@ -22,6 +22,6 @@ if __name__ == '__main__':
 
     # print(client.rotator_get_position())
     # print(client.echo())
-    # client.run_script_path('Norbi/Parser/parser_test.py', timeout=15)
+    client.run_script_path('Norbi/Parser/parser_test.py', timeout=15)
     # time.sleep(2)
     # client.radio_tx('hello')
