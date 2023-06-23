@@ -12,7 +12,7 @@ from requests_oauth2client.device_authorization import DeviceAuthorizationRespon
 
 
 def json_serial(obj) -> str:
-    if isinstance(obj, (datetime, date)):
+    if isinstance(obj, (datetime)):
         return obj.isoformat()
     raise TypeError ("Type %s not serializable" % type(obj))
 
@@ -69,14 +69,19 @@ class AstroSyncAuthClient:
         with open(token_storage_path, 'r+', encoding='utf-8') as local_storage:
 
             def save_token(token: BearerToken) -> None:
+                token_obj: dict = token.as_dict(expires_at=True)
+                token_obj.pop('expires_in')
+                token_string: str = json.dumps(token_obj, default=json_serial, indent=4)
                 local_storage.truncate(0)
                 local_storage.seek(0)
-                local_storage.write(json.dumps(token.__dict__, default=json_serial, indent=4))
+                local_storage.write(token_string)
 
             data: str = local_storage.read()
             if len(data) != 0 and not force_reauthorize:
                 token = BearerToken(**json.loads(data, object_hook=date_hook))
-                if token.is_expired():
+                if not token.expires_at:
+                    raise RuntimeError('Token has no data "expires_at". try to delete file')
+                if token.expires_at < datetime.now():
                     if not token.refresh_token:
                         raise RuntimeError('Refresh token must not be None!')
                     try:
@@ -105,7 +110,7 @@ class AstroSyncAuthClient:
 
     def userinfo(self) -> dict:
         user_info: dict = self.client.userinfo(self.token)
-        if hasattr(user_info, 'error'):
+        if user_info.get('error', None):
             raise AuthError(f'incorrect token: {user_info["error_description"]}\nTry to delete last_session.json'\
                             f' and try again.')
         return user_info
