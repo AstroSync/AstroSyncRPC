@@ -34,12 +34,23 @@ class RPC_Client:
     def radio_tx(self, data: bytes | list[int]) -> None:
         self.ws_client.call('SEND', {'data': data})
 
+    def radio_send_repeat(self, data: list[int] | bytes, period_sec: float, max_retries: int = 100,
+                          untill_answer: bool = True):
+        return self.ws_client.call_answer('SEND_REPEAT', {'data': data, 'period_sec': period_sec,
+                                                          'max_retries': max_retries, 'untill_answer': untill_answer},
+                                          answer_timeout=period_sec * max_retries + 0.3)
+
     def radio_wait_rx(self, timeout_sec: float | None = None):
-        self.ws_client.call_answer('WAIT_RX', answer_timeout=timeout_sec or 2)
+        return self.ws_client.call_answer('WAIT_RX', answer_timeout=timeout_sec or 2)
 
     def run_script(self, script_id: str, timeout: int = 2) -> None:
         print(f'{self.user["sub"]=}')
         self.ws_client.call('RUN_SCRIPT', {'user_id': self.user['sub'], 'script_id': str(script_id), 'timeout': timeout})
+
+    def run_script_path(self, script_path: str, timeout: int = 2):
+        if not script_path.startswith(f'{self.user["given_name"]}/'):
+            script_path = f'{self.user["given_name"]}/{script_path}'
+        self.ws_client.call('RUN_SCRIPT_PATH', {'user_id': self.user['sub'], 'script_path': script_path, 'timeout': timeout})
 
     def radio_init(self):
         self.ws_client.call('INIT_RADIO')
