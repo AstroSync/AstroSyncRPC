@@ -4,7 +4,7 @@ from pathlib import Path
 from datetime import datetime, date
 import json
 import io
-import qrcode
+from qrcode.main import QRCode
 import requests_oauth2client
 from requests_oauth2client.tokens import BearerToken
 from requests_oauth2client.exceptions import InvalidGrant
@@ -24,7 +24,7 @@ def date_hook(json_dict: dict):
     return json_dict
 
 def print_qr_code(data: str) -> None:
-    qr = qrcode.QRCode()
+    qr = QRCode()
     qr.add_data(data)
     f = io.StringIO()
     qr.print_ascii(out=f)
@@ -35,9 +35,11 @@ class AuthError(RuntimeError):
     pass
 
 class AstroSyncAuthClient:
-    def __init__(self, token_storage_path: str | None = None, force_reauthorize: bool = False) -> None:
-        self.oidc_config_url: str = 'https://astrosync.ru/auth/realms/Test/.well-known/openid-configuration'
-        self.oidc_config: dict = requests.get(self.oidc_config_url).json()
+    def __init__(self, token_storage_path: str | None = None, force_reauthorize: bool = False,
+                 server_addr:str='astrosync.ru', ssl: bool = True) -> None:
+        self.__ssl_str: str = 'https' if ssl else 'http'
+        self.oidc_config_url: str = f'{self.__ssl_str}://{server_addr}/auth/realms/Test/.well-known/openid-configuration'
+        self.oidc_config: dict = requests.get(self.oidc_config_url, verify=ssl).json()
         self.client = requests_oauth2client.client.OAuth2Client(
             token_endpoint=self.oidc_config['token_endpoint'],
             device_authorization_endpoint=self.oidc_config['device_authorization_endpoint'],

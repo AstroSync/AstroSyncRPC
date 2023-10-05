@@ -8,9 +8,11 @@ import time
 from dataclasses import dataclass
 from typing import Callable, Type
 from uuid import UUID, uuid4
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, ValidationError
 import websocket
 from websocket import WebSocketApp, WebSocket
+
+from astrosync_rpc.naku_enums import NAKU_Methods
 
 
 def on_error(_, error) -> None:
@@ -56,8 +58,8 @@ class Msg(BaseModel):
     src: str
     dst: str
     method: str
-    params: dict | list
-    message_id: UUID = uuid4()
+    params: dict
+    message_id: UUID = Field(default_factory=uuid4)
 
 
 class WebSocketClient:
@@ -65,11 +67,13 @@ class WebSocketClient:
     on_open_event: Signal = Signal()
     on_close_event: Signal = Signal()
 
-    def __init__(self, server_addr: str, user_id: str, ground_station: str, headers: dict | None = None) -> None:
+    def __init__(self, server_addr: str, user_id: str, ground_station: str, headers: dict | None = None, ssl: bool = True) -> None:
         websocket.enableTrace(False)
+        ws_headers = headers or []
         self.ground_station: str = ground_station
         self.user_id: str = user_id
-        self.ws: WebSocketApp = WebSocketApp(f"wss://{server_addr}/ws", header=headers, on_open=self.on_open,
+        self.__ssl: str = 'wss' if ssl else 'ws'
+        self.ws: WebSocketApp = WebSocketApp(f"{self.__ssl}://{server_addr}/ws", header=ws_headers, on_open=self.on_open,
                                              on_message=self.on_message, on_error=on_error, on_close=self.on_close)
         self.reconnect_period: int = 15
         self.waiting_queue: Queue = Queue()
@@ -88,12 +92,17 @@ class WebSocketClient:
         self.handlers.update({method: handler})
 
     def on_message(self, _: WebSocket, data: str) -> None:
-        self._last_msg = Msg.parse_obj(json.loads(data))
+        try:
+            self._last_msg = Msg.parse_obj(json.loads(data.lower()))
+        except ValidationError as err:
+            print(err)
+            print('got incorrect message:', data)
+            return None
         # print(f'get msg: {self._last_msg}')
         handler: Callable | None = self.handlers.get(self._last_msg.method, None)
         if handler is not None:
             handler(**self._last_msg.params)
-        elif '_ANSWER' in self._last_msg.method:
+        elif '_answer' in self._last_msg.method:
             self._waiting_answer = False
         else:
             print(f'unsubscribed method: {data}')
@@ -123,10 +132,10 @@ class WebSocketClient:
             return self.ws.sock.connected
         return False
 
-    def call(self, method: str, params: dict | None = None) -> None:
+    def call(self, method: NAKU_Methods, params: dict | None = None) -> None:
         if not self.connection_status:
             raise RuntimeError('Websocket is not connected. AstroSync api server is offline')
-        msg = Msg(src=self.user_id, dst=self.ground_station, method=method, params=params if params else {})
+        msg = Msg(src=self.user_id, dst=self.ground_station, method=method.name.lower(), params=params if params else {})
         if not self.is_connected():
             print('no connection')
             self.waiting_queue.put(WaitingMsg(timestamp=time.time(), message=msg))
@@ -134,16 +143,16 @@ class WebSocketClient:
         self.ws.send(msg.json())
 
 
-    def call_answer(self, method: str, params: dict | None = None, answer_timeout: float = 2):
+    def call_answer(self, method: NAKU_Methods, params: dict| None = None, answer_timeout: float = 2) -> dict:
         if not self.connection_status:
             raise RuntimeError('Websocket is not connected')
         self._waiting_answer = True
         self.call(method, params)
         if not (answer := self._answer_waiting(answer_timeout)):
-            raise TimeoutError(f'RPC {method} answer timeout')
+            raise TimeoutError(f'RPC {method.name.lower()} answer timeout')
         return answer
 
-    def _answer_waiting(self, answer_timeout: float) -> dict | list | None:
+    def _answer_waiting(self, answer_timeout: float) -> dict | None:
         while answer_timeout > 0 and self._waiting_answer:
             time.sleep(0.05)
             answer_timeout -= 0.05
