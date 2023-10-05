@@ -10,7 +10,7 @@ python = "^3.10"
 qrcode = "^7.4.2"
 requests-oauth2client = "^1.1.0"
 websocket-client = "^1.4.2"
-pydantic = "^1.10.9"
+pydantic = "^2.4.2"
 
 
 [build-system]
@@ -28,3 +28,8 @@ upload_to_pypi = false
 upload_to_repository = true
 upload_to_release = true
 build_command = "poetry build"
+
+[tool.ruff]
+line-length = 120
+select = ["E", "F", "PL"]
+ignore = ["PLR2004", "PLR0913"]

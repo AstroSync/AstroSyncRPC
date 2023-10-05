@@ -1,4 +1,3 @@
-import time
 from astrosync_rpc.rpc_client import RPC_Client
 
 def on_status_changed(status):

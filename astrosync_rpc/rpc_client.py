@@ -121,7 +121,8 @@ class RPC_Client:
     def radio_sync_word(self, method: Literal['set', 'get'], sync_word: int | None = None) -> dict | None:
         return self._call_property(method, NAKU_Methods.RADIO_SYNC_WORD, sync_word)
 
-    def radio_auto_gain_control(self, method: Literal['set', 'get'], auto_gain_control: bool | None = None) -> dict | None:
+    def radio_auto_gain_control(self, method: Literal['set', 'get'],
+                                auto_gain_control: bool | None = None) -> dict | None:
         return self._call_property(method, NAKU_Methods.RADIO_AUTO_GAIN_CONTROL, auto_gain_control)
 
     def radio_lna_gain(self, method: Literal['set', 'get'], lna_gain: int | None = None) -> dict | None:

@@ -2,7 +2,7 @@
 from __future__ import annotations
 from enum import Enum
 import json
-from queue import Queue, Empty
+from queue import Queue
 from threading import RLock, Thread
 import time
 from dataclasses import dataclass
@@ -67,14 +67,16 @@ class WebSocketClient:
     on_open_event: Signal = Signal()
     on_close_event: Signal = Signal()
 
-    def __init__(self, server_addr: str, user_id: str, ground_station: str, headers: dict | None = None, ssl: bool = True) -> None:
+    def __init__(self, server_addr: str, user_id: str, ground_station: str, headers: dict | None = None,
+                 ssl: bool = True) -> None:
         websocket.enableTrace(False)
         ws_headers = headers or []
         self.ground_station: str = ground_station
         self.user_id: str = user_id
         self.__ssl: str = 'wss' if ssl else 'ws'
-        self.ws: WebSocketApp = WebSocketApp(f"{self.__ssl}://{server_addr}/ws", header=ws_headers, on_open=self.on_open,
-                                             on_message=self.on_message, on_error=on_error, on_close=self.on_close)
+        self.ws: WebSocketApp = WebSocketApp(f"{self.__ssl}://{server_addr}/ws", header=ws_headers,
+                                             on_open=self.on_open,  on_message=self.on_message,
+                                             on_error=on_error, on_close=self.on_close)
         self.reconnect_period: int = 15
         self.waiting_queue: Queue = Queue()
         self.message_spoil_time: int = 60
@@ -135,7 +137,7 @@ class WebSocketClient:
     def call(self, method: NAKU_Methods, params: dict | None = None) -> None:
         if not self.connection_status:
             raise RuntimeError('Websocket is not connected. AstroSync api server is offline')
-        msg = Msg(src=self.user_id, dst=self.ground_station, method=method.name.lower(), params=params if params else {})
+        msg = Msg(src=self.user_id, dst=self.ground_station, method=method.name.lower(), params=params or {})
         if not self.is_connected():
             print('no connection')
             self.waiting_queue.put(WaitingMsg(timestamp=time.time(), message=msg))

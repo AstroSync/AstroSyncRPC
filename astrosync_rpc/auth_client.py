@@ -1,7 +1,7 @@
 import webbrowser
 import requests
 from pathlib import Path
-from datetime import datetime, date
+from datetime import datetime
 import json
 import io
 from qrcode.main import QRCode
