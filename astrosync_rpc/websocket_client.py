@@ -95,12 +95,10 @@ class WebSocketClient:
 
     def on_message(self, _: WebSocket, data: str) -> None:
         try:
-            self._last_msg = Msg.parse_obj(json.loads(data.lower()))
-        except ValidationError as err:
-            print(err)
+            self._last_msg = Msg.model_validate_json(data.lower())
+        except ValidationError:
             print('got incorrect message:', data)
             return None
-        # print(f'get msg: {self._last_msg}')
         handler: Callable | None = self.handlers.get(self._last_msg.method, None)
         if handler is not None:
             handler(**self._last_msg.params)
@@ -142,7 +140,7 @@ class WebSocketClient:
             print('no connection')
             self.waiting_queue.put(WaitingMsg(timestamp=time.time(), message=msg))
             return None
-        self.ws.send(msg.json())
+        self.ws.send(msg.model_dump_json())
 
 
     def call_answer(self, method: NAKU_Methods, params: dict| None = None, answer_timeout: float = 2) -> dict:

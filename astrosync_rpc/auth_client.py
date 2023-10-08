@@ -5,6 +5,7 @@ from datetime import datetime
 import json
 import io
 from qrcode.main import QRCode
+from loguru import logger
 import requests_oauth2client
 from requests_oauth2client.tokens import BearerToken
 from requests_oauth2client.exceptions import InvalidGrant
@@ -39,14 +40,19 @@ class AstroSyncAuthClient:
                  server_addr:str='astrosync.ru', ssl: bool = True) -> None:
         self.__ssl_str: str = 'https' if ssl else 'http'
         self.oidc_config_url: str = f'{self.__ssl_str}://{server_addr}/auth/realms/Test/.well-known/openid-configuration'
-        self.oidc_config: dict = requests.get(self.oidc_config_url, verify=ssl).json()
-        self.client = requests_oauth2client.client.OAuth2Client(
-            token_endpoint=self.oidc_config['token_endpoint'],
-            device_authorization_endpoint=self.oidc_config['device_authorization_endpoint'],
-            auth='test-client',
-            userinfo_endpoint=self.oidc_config['userinfo_endpoint']
-        )
-        self.token: BearerToken = self.auth_client(token_storage_path, force_reauthorize)
+        self.oidc_config:dict = requests.get(self.oidc_config_url, verify=ssl).json()
+        try:
+            self.client = requests_oauth2client.client.OAuth2Client(
+                token_endpoint=self.oidc_config['token_endpoint'],
+                device_authorization_endpoint=self.oidc_config['device_authorization_endpoint'],
+                auth='test-client',
+                userinfo_endpoint=self.oidc_config['userinfo_endpoint']
+            )
+            self.token: BearerToken = self.auth_client(token_storage_path, force_reauthorize)
+        except KeyError as err:
+            logger.error(err)
+            logger.info(self.oidc_config)
+
 
     def get_new_token(self) -> BearerToken:
         da_resp: DeviceAuthorizationResponse = self.client.authorize_device()
