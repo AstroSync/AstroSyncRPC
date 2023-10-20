@@ -2,6 +2,8 @@
 import time
 from queue import Empty
 from typing import Any, Callable
+
+from loguru import logger
 from astrosync_rpc.auth_client import AstroSyncAuthClient
 from astrosync_rpc.naku_enums import NAKU_Methods, NAKU_Events
 from astrosync_rpc.radio_api import RadioAPI
@@ -16,12 +18,12 @@ class RPC_Client:
         self.auth_client = AstroSyncAuthClient(server_addr=server_addr, ssl=ssl)
         self.user = self.auth_client.userinfo()
         self.ws_client = WebSocketClient(f'{server_addr}/{api_path}', self.user['sub'], ground_station, {}, ssl)
-        self.ws_client.on_open_event.connect(self.on_connected)
+        self.ws_client.on_open_event.connect(self._on_connected)
         self.ws_client._connect()
         self.radio = RadioAPI(self.ws_client)
         self.rotator = RotatorAPI(self.ws_client)
 
-    def on_connected(self) -> None:
+    def _on_connected(self) -> None:
         self._auth()
         try:
             while True:
@@ -39,7 +41,7 @@ class RPC_Client:
         self.ws_client.ws.send(msg.model_dump_json())
 
     def run_script(self, script_id: str, timeout: int = 2):
-        print(f'{self.user["sub"]=}')
+        logger.debug(f'{self.user["sub"]=}')
         return self.ws_client.call_answer(NAKU_Methods.RUN_SCRIPT, {'script_id': str(script_id),
                                                                     'timeout': timeout,
                                                                     'need_result': True},
@@ -78,6 +80,12 @@ class RPC_Client:
 
     def on_receive(self, handler: Callable[[str], Any]):
         self.ws_client.register_event(NAKU_Events.RADIO_RECEIVED, handler)
+
+    def on_transmited(self, handler: Callable[[str], Any]):
+        self.ws_client.register_event(NAKU_Events.RADIO_TRANSMITED, handler)
+
+    def on_script_finished(self, handler: Callable[[str], Any]):
+        self.ws_client.register_event(NAKU_Events.SCRIPT_FINISHED, handler)
 
 if __name__ == '__main__':
     client = RPC_Client('NSU')

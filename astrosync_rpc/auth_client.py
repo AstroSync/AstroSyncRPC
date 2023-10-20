@@ -30,7 +30,7 @@ def print_qr_code(data: str) -> None:
     f = io.StringIO()
     qr.print_ascii(out=f)
     f.seek(0)
-    print(f.read())
+    logger.success(f.read())
 
 class AuthError(RuntimeError):
     pass
@@ -59,7 +59,7 @@ class AstroSyncAuthClient:
         redirect_url: str | None = da_resp.verification_uri_complete
 
         if redirect_url is not None:
-            print('You will be redirected for authorization process\nor you can scan QR code by your phone')
+            logger.info('You will be redirected for authorization process\nor you can scan QR code by your phone')
             print_qr_code(redirect_url)
             webbrowser.open(redirect_url)
         pool_job = DeviceAuthorizationPoolingJob(self.client, da_resp.device_code, interval=da_resp.interval)
@@ -94,25 +94,25 @@ class AstroSyncAuthClient:
                         raise RuntimeError('Refresh token must not be None!')
                     try:
                         token = self.client.refresh_token(token.refresh_token)
-                        print('token refreshed successfully')
+                        logger.success('token refreshed successfully')
                         try:
                             save_token(token)
                         except TypeError as err:
-                            print(err)
-                            print(token)
+                            logger.error(err)
+                            logger.debug(token)
                     except InvalidGrant as err:
-                        print(err)
+                        logger.error(err)
                         token = self.get_new_token()
-                        print('Successfully authorized!')
+                        logger.success('Successfully authorized!')
                         save_token(token)
                 else:
-                    print('Already authorized')
+                    logger.info('Already authorized')
             else:
                 token = self.get_new_token()
-                print('Successfully authorized!')
+                logger.success('Successfully authorized!')
                 save_token(token)
         if token:
-            print(f'token expires at: {token.expires_at}')
+            logger.info(f'token expires at: {token.expires_at}')
             return token
         raise RuntimeError('Authorization failed!')
 
@@ -126,4 +126,4 @@ class AstroSyncAuthClient:
 
 if __name__ == '__main__':
     auth_client = AstroSyncAuthClient()
-    print(auth_client.userinfo())
+    logger.info(auth_client.userinfo())

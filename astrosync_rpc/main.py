@@ -1,7 +1,6 @@
+import time
 from astrosync_rpc.rpc_client import RPC_Client
 
-def on_status_changed(status):
-    print(f'status changed: {status}')
 
 def on_recieve(data: str) -> None:
     print(f'recieve data: {data}')
@@ -10,11 +9,13 @@ if __name__ == '__main__':
     ground_station = RPC_Client('NSU')
     # print(ground_station.auth_client.userinfo())
     ground_station.on_receive(on_recieve)
+    ground_station.on_transmited(lambda data: print(data))
+    ground_station.on_script_finished(lambda data: print(data))
     print(f'echo time: {ground_station.echo()[1]}')
-    # ground_station.rotator.set_position(40, 0)
     # client.radio_modulation('set', 'lora')
     print(ground_station.radio.frequency)
     print(ground_station.radio.bandwidth)
+    print(ground_station.run_script_path('Norbi/test.py', 10))
     # client.radio_header_mode('set', 'implicit')
     # client.radio_bandwidth('set', 'bw125')
     # client.radio_ldro('set', False)
@@ -47,8 +48,8 @@ if __name__ == '__main__':
     # time.sleep(6)
     # print(client.terminate_script())
 
-    # try:
-    #     while True:
-    #         pass
-    # except KeyboardInterrupt:
-    #     pass
+    try:
+        while True:
+            pass
+    except KeyboardInterrupt:
+        pass

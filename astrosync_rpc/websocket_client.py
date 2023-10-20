@@ -1,13 +1,13 @@
 
 from __future__ import annotations
 from enum import Enum
-import json
 from queue import Queue
 from threading import RLock, Thread
 import time
 from dataclasses import dataclass
 from typing import Callable, Type
 from uuid import UUID, uuid4
+from loguru import logger
 from pydantic import BaseModel, Field, ValidationError
 import websocket
 from websocket import WebSocketApp, WebSocket
@@ -70,7 +70,7 @@ class WebSocketClient:
     def __init__(self, server_addr: str, user_id: str, ground_station: str, headers: dict | None = None,
                  ssl: bool = True) -> None:
         websocket.enableTrace(False)
-        ws_headers = headers or []
+        ws_headers: dict | list = headers or []
         self.ground_station: str = ground_station
         self.user_id: str = user_id
         self.__ssl: str = 'wss' if ssl else 'ws'
@@ -97,23 +97,23 @@ class WebSocketClient:
         try:
             self._last_msg = Msg.model_validate_json(data.lower())
         except ValidationError:
-            print('got incorrect message:', data)
+            logger.error('got incorrect message:', data)
             return None
-        handler: Callable | None = self.handlers.get(self._last_msg.method, None)
+        handler: Callable | None = self.handlers.get(self._last_msg.method.upper(), None)
         if handler is not None:
-            handler(**self._last_msg.params)
+            handler(self._last_msg.params)
         elif '_answer' in self._last_msg.method:
             self._waiting_answer = False
         else:
-            print(f'unsubscribed method: {data}')
+            logger.warning(f'unsubscribed method: {data}')
 
-    def on_close(self, _, close_status_code, close_msg):
-        print(f'{close_status_code=}, {close_msg=}')
+    def on_close(self, _, close_status_code, close_msg) -> None:
+        logger.debug(f'{close_status_code=}, {close_msg=}')
         self.connection_status = False
         self.on_close_event.emit()
 
     def on_open(self, _) -> None:
-        print('connected')
+        logger.debug('connected')
         self.connection_status = True
         self.on_open_event.emit()
 
@@ -137,7 +137,7 @@ class WebSocketClient:
             raise RuntimeError('Websocket is not connected. AstroSync api server is offline')
         msg = Msg(src=self.user_id, dst=self.ground_station, method=method.name.lower(), params=params or {})
         if not self.is_connected():
-            print('no connection')
+            logger.warning('no connection')
             self.waiting_queue.put(WaitingMsg(timestamp=time.time(), message=msg))
             return None
         self.ws.send(msg.model_dump_json())
