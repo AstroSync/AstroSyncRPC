@@ -4,6 +4,7 @@ from queue import Empty
 from typing import Any, Callable
 
 from loguru import logger
+import requests
 from astrosync_rpc.auth_client import AstroSyncAuthClient
 from astrosync_rpc.naku_enums import NAKU_Methods, NAKU_Events
 from astrosync_rpc.radio_api import RadioAPI
@@ -15,6 +16,7 @@ class RPC_Client:
 
     def __init__(self, ground_station: str, server_addr: str = 'astrosync.ru', api_path: str = 'api',
                  ssl: bool = True) -> None:
+        self._server_addr: str = ('https' if ssl else 'http') + f'://{server_addr}/{api_path}/'
         self.auth_client = AstroSyncAuthClient(server_addr=server_addr, ssl=ssl)
         self.user = self.auth_client.userinfo()
         self.ws_client = WebSocketClient(f'{server_addr}/{api_path}', self.user['sub'], ground_station, {}, ssl)
@@ -87,7 +89,14 @@ class RPC_Client:
     def on_script_finished(self, handler: Callable[[str], Any]):
         self.ws_client.register_event(NAKU_Events.SCRIPT_FINISHED, handler)
 
+    def get_file_by_path(self, file_path: str):
+        querry_str: str = self._server_addr + f'get_file_by_path?file_path={file_path}'
+        access_token = self.auth_client.token.access_token
+        resp: requests.Response = requests.get(querry_str, headers={'Authorization': 'Bearer ' + access_token})
+        return resp.content.decode('utf-8')
+
 if __name__ == '__main__':
     client = RPC_Client('NSU')
+    print(client.get_file_by_path('test/Norbi/NORBI2/Scripts/wr_ft_pl_sol.json'))
     # client.radio_send(b'hello world')
     # print(client.rotator_get_position())
