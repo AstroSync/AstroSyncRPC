@@ -4,6 +4,10 @@
 
 `pip install git+https://github.com/AstroSync/AstroSyncRPC.git`
 
+or
+
+`poetry add git+https://github.com/AstroSync/AstroSyncRPC.git`
+
 ## Using
 
 ```python
