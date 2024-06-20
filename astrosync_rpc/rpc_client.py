@@ -14,12 +14,16 @@ from astrosync_rpc.websocket_client import WebSocketClient, WaitingMsg, Msg
 
 class RPC_Client:
 
-    def __init__(self, ground_station: str, server_addr: str = 'astrosync.ru', api_path: str = 'api',
-                 ssl: bool = True) -> None:
+    def __init__(self, ground_station: str, server_addr: str = 'astrosync.ru',
+                 api_path: str = 'api', ssl: bool = True) -> None:
         self._server_addr: str = ('https' if ssl else 'http') + f'://{server_addr}/{api_path}/'
         self.auth_client = AstroSyncAuthClient(server_addr=server_addr, ssl=ssl)
         self.user = self.auth_client.userinfo()
-        self.ws_client = WebSocketClient(f'{server_addr}/{api_path}', self.user['sub'], ground_station, {}, ssl)
+        self.ws_client = WebSocketClient(f'{server_addr}/{api_path}',
+                                         user_id=self.user['sub'],
+                                         ground_station=ground_station,
+                                         headers={},
+                                         ssl=ssl)
         self.ws_client.on_open_event.connect(self._on_connected)
         self.ws_client._connect()
         self.radio = RadioAPI(self.ws_client)
@@ -44,17 +48,19 @@ class RPC_Client:
 
     def run_script(self, script_id: str, timeout: int = 2):
         logger.debug(f'{self.user["sub"]=}')
-        return self.ws_client.call_answer(NAKU_Methods.RUN_SCRIPT, {'script_id': str(script_id),
-                                                                    'timeout': timeout,
-                                                                    'need_result': True},
+        return self.ws_client.call_answer(NAKU_Methods.RUN_SCRIPT,
+                                          {'script_id': str(script_id),
+                                           'timeout': timeout,
+                                           'need_result': True},
                                           answer_timeout=timeout + 2)
 
     def run_script_path(self, script_path: str, timeout: int = 2):
         if not script_path.startswith(f'{self.user["given_name"]}/'):
             script_path = f'{self.user["given_name"]}/{script_path}'
-        return self.ws_client.call_answer(NAKU_Methods.RUN_SCRIPT_PATH, {'script_path': script_path,
-                                                                         'timeout': timeout,
-                                                                         'need_result': True},
+        return self.ws_client.call_answer(NAKU_Methods.RUN_SCRIPT_PATH,
+                                          {'script_path': script_path,
+                                           'timeout': timeout,
+                                           'need_result': True},
                                           answer_timeout=timeout + 2)
 
     def terminate_script(self):
@@ -64,7 +70,8 @@ class RPC_Client:
         return self.ws_client.call_answer(NAKU_Methods.GET_REMAINING_SESSION_TIME)
 
     def help(self, method_or_event: str = ''):
-        return self.ws_client.call_answer(NAKU_Methods.HELP, {'method_or_event': method_or_event})
+        return self.ws_client.call_answer(NAKU_Methods.HELP,
+                                          {'method_or_event': method_or_event})
 
     def echo(self):
         timestamp = time.time()
@@ -92,7 +99,8 @@ class RPC_Client:
     def get_file_by_path(self, file_path: str):
         querry_str: str = self._server_addr + f'get_file_by_path?file_path={file_path}'
         access_token = self.auth_client.token.access_token
-        resp: requests.Response = requests.get(querry_str, headers={'Authorization': 'Bearer ' + access_token})
+        headers = {'Authorization': 'Bearer ' + access_token}
+        resp: requests.Response = requests.get(querry_str, headers=headers)
         return resp.content.decode('utf-8')
 
 if __name__ == '__main__':

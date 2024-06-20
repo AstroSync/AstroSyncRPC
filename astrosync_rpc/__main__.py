@@ -1,5 +1,6 @@
 import time
 from astrosync_rpc.rpc_client import RPC_Client
+from astrosync_rpc.sx127x_registers_and_params import SX127x_BW
 
 
 def on_recieve(data: str) -> None:
@@ -9,16 +10,30 @@ def on_finished(data):
     print(f'script finished: {data}')
 
 if __name__ == '__main__':
-    ground_station = RPC_Client('NSU')
+    ground_station = RPC_Client('SAT_API')
     # print(ground_station.auth_client.userinfo())
     ground_station.on_receive(on_recieve)
     ground_station.on_transmited(lambda data: print(data))
     ground_station.on_script_finished(on_finished)
     print(f'echo time: {ground_station.echo()[1]}')
     # client.radio_modulation('set', 'lora')
-    print(ground_station.radio.frequency)
-    print(ground_station.radio.bandwidth)
-    print(ground_station.run_script_path('Norbi/test2.py', 5))
+    # ground_station.radio.frequency = 436_100_000
+    # ground_station.radio.spreading_factor = 10
+    # ground_station.radio.bandwidth = SX127x_BW.BW250
+    # ground_station.radio.init()
+    # print(ground_station.radio.frequency)
+    # print(ground_station.radio.bandwidth)
+    # print(ground_station.radio.tx_power)
+
+    # ground_station.run_script_path('Norbi/NORBI2/N2_wr_ft.py')
+    # print(ground_station.rotator.get_position())
+    # print(ground_station.run_script_path('Norbi/test2.py', 5))
+
+    # ground_station.rotator.set_position(120, 10)
+    # time.sleep(10)
+    # print(ground_station.rotator.get_position())
+    # ground_station.radio.send([1, 2, 3])
+
     # client.radio_header_mode('set', 'implicit')
     # client.radio_bandwidth('set', 'bw125')
     # client.radio_ldro('set', False)
@@ -47,7 +62,7 @@ if __name__ == '__main__':
     # print(client.echo())
     # client.radio_tx(b'hello')
     # client.radio_tx([1, 2, 3, 43])
-    # print(client.run_script_path('Norbi/test.py', timeout=30))
+    print(ground_station.run_script_path('sat_api.py', timeout=350))
     # time.sleep(6)
     # print(client.terminate_script())
 
